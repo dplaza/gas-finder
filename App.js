@@ -1,9 +1,12 @@
 import React from 'react';
-import { StyleSheet, Text, View, Button, Alert, Platform, FlatList, Image } from 'react-native';
-import { Constants, Location, Permissions } from 'expo';
+import { StyleSheet, Text, View, Button, Alert, Platform, FlatList, Image, Picker, ActivityIndicator } from 'react-native';
+import { Constants, Location, Permissions, Linking } from 'expo';
 import { ListItem} from 'react-native-elements'
 import * as commonStyle from './styles/common'
 import moment from 'moment'
+import axios from 'axios'
+
+const BASE_API = 'http://192.168.0.17:3000/api/getByRegion'
 
 export default class App extends React.Component {
   constructor(props) {
@@ -13,7 +16,10 @@ export default class App extends React.Component {
       isLoading: false,
       location: null,
       errorMessage: null,
-      prices: []
+      prices: [],
+      region: null,
+      city: null,
+      gasType: null
     };
   }
 
@@ -27,30 +33,28 @@ export default class App extends React.Component {
     }
   }
 
-  listPrices() {
-    const result = [
-      {
-        index: '1',
-        gasStation: { name: 'COPEC', address: 'AV. FEDERICO STA. MARIA 2044,Valparaíso' },
-        price: 516,
-        lastUpdate: moment("2018-04-26T15:27:41.000")
-      },
-      {
-        index: '2',
-        gasStation: { name: 'COPEC', address: 'COMBATE LAS COIMAS 1412,San Felipe' },
-        price: 526,
-        lastUpdate: moment("2018-04-26T15:27:41.000")
-      },
-      {
-        index: '3',
-        gasStation: { name: 'SHELL', address: 'Normandie 2077,Quintero' },
-        price: 536,
-        lastUpdate: moment("2018-04-26T15:27:41.000")
-      }
-    ]
+  listPrices = async () => {
+    if (!this.state.region || !this.state.gasType) {
+      return
+    }
+
     this.setState({
-      prices: result
+      isLoading: true,
+      prices: []
     })
+
+    try {
+      let response = await axios.post(BASE_API, {
+        region: this.state.region,
+        gasType: this.state.gasType
+      })
+      this.setState({
+        isLoading: false,
+        prices: response.data
+      })
+    } catch (err) {
+      console.error(err)
+    }
   }
 
   _getLocationAsync = async () => {
@@ -63,18 +67,31 @@ export default class App extends React.Component {
 
     let location = await Location.getCurrentPositionAsync({});
     this.setState({ location });
-    this.listPrices()
   }
 
-  _hello() {
-    Alert.alert('wiii')
+  _openMaps (obj) {
+    const scheme = Platform.OS === 'ios' ? 'maps:0,0?q=' : 'geo:0,0?q=';
+    const address = encodeURI(obj.gasStation.address);
+    const label = 'Custom Label';
+    const url = Platform.OS === 'ios' ? `${scheme}${label}@${address}` : `${scheme}${address}`;
+
+    Linking.openURL(url);
   }
 
-  _principalPrice () {
-    if (this.state.prices.length > 0) {
-      return JSON.stringify(this.state.prices[0])
+  _changeRegion (value) {
+    if (value) {
+      this.setState({
+        region: value
+      })
     }
-    return ''
+  }
+
+  _changeGasType (value) {
+    if (value) {
+      this.setState({
+        gasType: value
+      })
+    }
   }
 
   render() {
@@ -87,14 +104,45 @@ export default class App extends React.Component {
 
     return (
       <View style={styles.container}>
+        <Text style={styles.textLocation}>{textLocation}{this.state.region}</Text>
         <View style={styles.initialInfo}>
-          {/* <Button title="Mi bencina BBB" onPress={this._hello} style={styles.btn} color="#C19875"></Button> */}
-          <Text style={styles.textLocation}>{textLocation}</Text>
+          <Picker
+            selectedValue={this.state.region}
+            style={styles.picker}
+            onValueChange={(itemValue, itemIndex) => this._changeRegion(itemValue)}>
+            <Picker.Item value="" label="Seleccione Región" />
+            <Picker.Item value="1" label="Arica y Parinacota" />
+            <Picker.Item value="2" label="Tarapacá" />
+            <Picker.Item value="3" label="Antofagasta" />
+            <Picker.Item value="4" label="Atacama" />
+            <Picker.Item value="5" label="Coquimbo" />
+            <Picker.Item value="6" label="Valparaíso" />
+            <Picker.Item value="7" label="Metropolitana" />
+            <Picker.Item value="8" label="Gral. Bernardo O'Higgins" />
+            <Picker.Item value="9" label="Maule" />
+            <Picker.Item value="10" label="Bío Bío" />
+            <Picker.Item value="11" label="Araucanía" />
+            <Picker.Item value="12" label="Los Ríos" />
+            <Picker.Item value="13" label="Los Lagos" />
+            <Picker.Item value="14" label="Aysén Gral. C. Ibáñez del Campo" />
+            <Picker.Item value="15" label="Magallanes y la Antártida Chilena" />
+          </Picker>
+          <Picker
+            selectedValue={this.state.gasType}
+            style={styles.picker}
+            onValueChange={(itemValue, itemIndex) => this._changeGasType(itemValue)}>
+            <Picker.Item value="" label="Seleccione Tipo Combustible" />
+            <Picker.Item value="1" label="Gasolina 93" />
+            <Picker.Item value="7" label="Gasolina 95" />
+            <Picker.Item value="2" label="Gasolina 97" />
+            <Picker.Item value="6" label="GLP Vehicular" />
+            <Picker.Item value="5" label="GNC" />
+            <Picker.Item value="4" label="Kerosene" />
+            <Picker.Item value="3" label="Petroleo Diesel" />
+          </Picker>
+          <Button title="Buscar" color={commonStyle.COLOR_RED} onPress={this.listPrices}></Button>
         </View>
-        <View style={styles.principalBox}>
-          <Image source={{uri: "https://www.smtm.co/uploads/logo/13/48/22/1348222b4100b29d2e801c22fff80324.png"}} style={{width: 300, height: 50, resizeMode: Image.resizeMode.contain}} />
-          <Text>{this._principalPrice()}</Text>
-        </View>
+        {this.state.isLoading && <ActivityIndicator size="large" style={styles.loadingIndicator} color={commonStyle.COLOR_WHITE} />}
         <FlatList
           style={styles.listPrices}
           data={this.state.prices}
@@ -102,12 +150,13 @@ export default class App extends React.Component {
           renderItem={({item}) => (
             <ListItem
               key={item.index}
-              leftAvatar={{ source: { uri: 'http://www.diariocronica.cl/wp-content/uploads/2014/03/logo-copec.jpg' } }}
               title={item.gasStation.name}
-              titleStyle={{ color: commonStyle.COLOR_FONT }}
+              titleStyle={{ color: commonStyle.COLOR_WHITE }}
               subtitle={item.gasStation.address}
-              subtitleStyle={{ color: commonStyle.COLOR_BG }}
-              badge={{ value: `$${item.price}`, textStyle: { color: commonStyle.COLOR_FONT }, containerStyle: { marginTop: 10 } }}
+              subtitleStyle={{ color: commonStyle.COLOR_LIGHT_BLUE }}
+              onPress={() => this._openMaps(item)}
+              onPressRightIcon={() => this._openMaps(item)}
+              badge={{ value: `$${item.price}`, textStyle: { color: commonStyle.COLOR_WHITE }, containerStyle: { marginTop: 10 } }}
             />
           )}
         />
@@ -119,28 +168,36 @@ export default class App extends React.Component {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: commonStyle.COLOR_BG_2,
-    justifyContent: 'center',
+    backgroundColor: commonStyle.COLOR_DARK_BLUE,
+    justifyContent: 'center'
   },
   initialInfo: {
     marginTop: 40,
-    marginBottom: 20
-  },
-  principalBox: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20
+    marginLeft: 20,
+    marginRight: 20,
+    backgroundColor: commonStyle.COLOR_WHITE,
+    paddingTop: 10,
+    paddingBottom: 10,
+    paddingLeft: 10,
+    paddingRight: 10,
+    borderRadius: 5
   },
   btn: {
-    backgroundColor: commonStyle.COLOR_BTN
+    backgroundColor: commonStyle.COLOR_RED
   },
   textLocation: {
+    marginTop: 40,
     marginRight: 20,
     marginLeft: 20,
-    marginTop: 20,
-    color: commonStyle.COLOR_FONT
+    color: commonStyle.COLOR_YELLOW
   },
   listPrices: {
     flex: 2
+  },
+  loadingIndicator: {
+    marginTop: 20
+  },
+  picker: {
+    color: commonStyle.COLOR_DARK_BLUE
   }
 });
